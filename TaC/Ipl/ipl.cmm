@@ -87,8 +87,6 @@ public void main() {
   vect[15] = addrof(serr);     // SVC
 */
 
-  consInit();                  // コンソールドライバ初期化
-
   putstr("TaC Initial Program Loader Ver.");
   putstr( VER );
   putstr("\n" );

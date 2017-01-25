@@ -2,7 +2,7 @@
  * TaC IPL Source Code
  *    Tokuyama kousen Educational Computer 16bit Ver.
  *
- * Copyright (C) 2009-2016 by
+ * Copyright (C) 2009-2017 by
  *                      Dept. of Computer Science and Electronic Engineering,
  *                      Tokuyama College of Technology, JAPAN
  *
@@ -22,6 +22,7 @@
 /*
  * console.cmm : TaC IPL の画面制御部分
  *
+ * 2017.01.25           : VGA関連の関数を削除
  * 2016.01.10           : ハードウェアカーソルの制御機能を追加
  * 2012.12.26           : TaC-OS と共通化のため puthex を _puthex に名称変更
  * 2012.09.13 v2.0.0    : TaC-CPU V2 用に変更(TAB,BSを省略しサイズを縮小)
@@ -39,93 +40,20 @@
 //
 // グローバル変数 (BSSに配置)
 //
-int[] vRam;                                   // VRAM のアドレス
-int cx,cy;                                    // VRAM 上のカーソル位置
 
-// 画面のクリア
-public void cls() {
-  for (int i=0; i<2000; i=i+1)
-    vRam[i] = 0;
-  cx = cy = 0;
-}
-
-// 改行
-void newline() {
-  cx = 0;
-  if ((cy = cy + 1)>=25) {
-    for (int i=0; i<24*80; i=i+1)
-      vRam[i] = vRam[i+80];
-    for (int i=24*80; i<25*80; i=i+1)
-      vRam[i] = 0;
-    cy=24;
-  }
-}
-
-// 表示可能文字
-void printable(char c) {
-  vRam[cy*80+cx]=ord(c);
-  if ((cx = cx + 1)>=80)
-    newline();
-}
-
-/*
-// TAB
-void tab() {
-  int stop = (cx+8) & 0x0fff8;
-  for (int i=cx; i<stop; i=i+1)
-    printable(' ');
-}
-
-// バックスペース
-void backspace() {
-  if (cx==0 && cy==0) return;                 // これ以上戻れない
-
-  cx = cx - 1;                                // カーソルを左に移動
-
-  if (cx < 0) {                               // 左端を突き抜けた
-    cx = 79;                                  // 前の行の右端に移動
-    cy = cy - 1;
-  }
-}
-*/
-
-// 1文字表示ルーチン
-void putVGA(char c) {                         // VGA への出力
-  if (c=='\r') {                              // 復帰
-     cx = 0;
-  } else if (c=='\n') {                       // 改行(実は復帰もする)
-     newline();
-/*
-  } else if (c=='\t') {                       // TAB
-     tab();
-  } else if (c=='\10') {                      // バックスペース
-     backspace();
-*/
-  } else if (0x20<=ord(c) && ord(c)<=0x7e) {  // 表示可能な文字だけ
-     printable(c);
-  }
-  vRam[2045] = cx;                            // ハードウェアカーソル座標
-  vRam[2046] = cy;                            //   レジスタは VRAM 最後にある
-}
-
-#ifdef SIO
 void putSIO(char c) {                         // SIO への出力
   while((in(0x0a) & 0x80)==0)
     ;
   out(0x08, ord(c));
 }
-#endif
 
 //
 // 外部へ公開する関数
 //
 // 1文字出力
-public void putch(char c) {                   // VGA と SIO の両方へ出力する
-#ifdef SIO
+public void putch(char c) {                   // SIO へ出力する
   if (c=='\n') putSIO('\r');
   putSIO(c);
-#endif
-  putVGA(c);
 }
 
 // 文字列出力
@@ -142,11 +70,4 @@ public void _puthex(int x) {
   putch(hstr[(x>>4 )&0x000f]);
   putch(hstr[(x    )&0x000f]);
 }
- 
-// 画面の初期化
-public void consInit() {
-  vRam = _ItoA(VRAM);                         // VRAM のアドレス
-  cls();                                      // 画面クリア
-  vRam[2045] = 0;                             // ハードウェアカーソル座標
-  vRam[2046] = 0;                             //   レジスタは VRAM 最後にある
-}
+

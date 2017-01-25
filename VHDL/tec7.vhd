@@ -2,7 +2,7 @@
 -- TeC7 VHDL Source Code
 --    Tokuyama kousen Educational Computer Ver.7
 --
--- Copyright (C) 2002-2016 by
+-- Copyright (C) 2002-2017 by
 --                      Dept. of Computer Science and Electronic Engineering,
 --                      Tokuyama College of Technology, JAPAN
 --
@@ -19,6 +19,7 @@
 --
 -- tec7.vhd : TeC7 Top Level
 --
+-- 2017.01.25 : PS2、VGA関連のモジュール及びシグナルを削除
 -- 2016.01.08 : P_PS2_CLK を inout に変更(バグ訂正)
 --
 
@@ -77,18 +78,8 @@ entity TeC7 is
            SPI_DIN   : in   std_logic;
            SPI_DOUT  : out  std_logic;
            SPI_CS    : out  std_logic;
-           ACC_LED   : out  std_logic;
-			  
-           -- PS/2
-           PS2_CLK   : inout std_logic;
-           PS2_DAT   : inout std_logic;
+           ACC_LED   : out  std_logic
 
-           -- VGA
-           VGA_RED   : out  std_logic;
-           VGA_GREEN : out  std_logic;
-           VGA_BLUE  : out  std_logic;
-           VGA_HSYNC : out  std_logic;
-           VGA_VSYNC : out  std_logic
          );
 end TeC7;
 
@@ -119,6 +110,9 @@ signal i_com_ctr     : std_logic;                      -- TaCがTeCのコンソール入
 signal i_console_ctr : std_logic;                      -- TacOS上でコンソール入出力をTeCモードに変更するための切り替え信号線（追記：2016/10/6）
 signal i_serial_ctr  : std_logic;                      -- TeC/TaCがシリアル通信するための切り替え信号線（追記：2016/9/5）
 signal i_com_line    : std_logic_vector(18 downto 0);  -- TaCによるTeCのコンソール打ち込み用(追記：2016/8/30)
+
+signal i_in_tac_sio  : std_logic;
+signal i_out_tac_sio : std_logic;
 
 component IBUFG
     port ( I         : in     std_logic;
@@ -208,7 +202,6 @@ end component;
 component TAC
     Port ( P_CLK0     : in std_logic;                         -- 49.152MHz 0'
            P_CLK90    : in std_logic;                         -- 49.152MHz 90'
-           P_CLK_VGA  : in std_logic;                         -- 25.1221MHz
            P_MODE     : in std_logic_vector(1 downto 0);      -- 0:TeC,1:TaC,
            P_RESET    : in std_logic;                         -- 2,3:Demo1,2
 
@@ -245,6 +238,9 @@ component TAC
            P_SIO_RXD  : in    std_logic;                      -- SIO Receive
            P_SIO_TXD  : out   std_logic;                      -- SIO Transmit
 
+           P_SIO_RXD2  : in    std_logic;                     -- SIO Receive2
+           P_SIO_TXD2  : out   std_logic;                     -- SIO Transmit2
+
            -- PIO
            P_ADC_REF  : out  std_logic_vector (7 downto 0);
            P_EXT_OUT  : out  std_logic_vector (7 downto 0);
@@ -261,18 +257,8 @@ component TAC
            P_SPI_DIN  : in  std_logic;
            P_SPI_DOUT : out  std_logic;
            P_SPI_CS   : out  std_logic;
-           P_ACC_LED  : out  std_logic;
+           P_ACC_LED  : out  std_logic
 
-           -- PS/2
-           P_PS2_CLK  : inout  std_logic;
-           P_PS2_DAT  : inout  std_logic;
-
-           -- VGA
-           P_VGA_RED  : out  std_logic;
-           P_VGA_GREEN: out  std_logic;
-           P_VGA_BLUE : out  std_logic;
-           P_VGA_HSYNC: out  std_logic;
-           P_VGA_VSYNC: out  std_logic
     );
 end component;
 
@@ -338,17 +324,18 @@ begin
                        RUN_SW   & -- i_in(3)
                        RIGHT_SW & -- i_in(2)
                        LEFT_SW;   -- i_in(1)
-  i_in(0) <= EXT_IN(7) when (i_mode="01") else SIO_RXD;
+  i_in(0) <= SIO_RXD;
   i_in_tec(27 downto 1) <= "000000000000000000000000000" when (i_mode="01" and i_console_ctr='0') else i_in(27 downto 1);
   i_in_tac(27 downto 1) <= i_in(27 downto 1) when (i_mode="01" and i_console_ctr='0') else "000000000000000000000000000";
   
   -- TaCをターミナルソフトとして利用する際の切り替え
-  i_in_tec(0) <= i_out_tac(0) when i_serial_ctr='1' else i_in(0);
-  i_in_tac(0) <= i_out_tec(0) when i_serial_ctr='1' else i_in(0);
+  i_in_tec(0) <= i_out_tac_sio when i_serial_ctr='1' else i_in(0);
+  i_in_tac_sio <= i_out_tec(0) when i_serial_ctr='1' else '0';
+  i_in_tac(0) <=  i_in(0);
   
   -- OUTPUT
   ADC_REF <= i_out(43 downto 36);
-  EXT_OUT <= i_out(0) & "0000001" when (i_mode="01") else i_out(35 downto 28);
+  EXT_OUT <= i_out(35 downto 28);
   ADDR_LED <= not i_out(27 downto 20);
   DATA_LED <= not i_out(19 downto 12);  
   RUN_LED <= not i_out(11);
@@ -362,7 +349,7 @@ begin
   PC_LED <= not i_out(3);
   MM_LED <= not i_out(2);
   SPK_OUT <= i_out(1);
-  SIO_TXD <= '0' when (i_mode="01") else i_out(0);
+  SIO_TXD <= i_out(0);
   i_out(43 downto 1) <= i_out_tac(43 downto 1) when (i_mode="01" and i_console_ctr='0') else i_out_tec(43 downto 1);
   i_out(0) <= i_out_tac(0) when (i_mode="01") else i_out_tec(0);
 
@@ -402,7 +389,7 @@ begin
          P_BUZ      => i_out_tec(1),                        -- BUZZER OUT
 
          -- SIO
-         P_SIO_RXD  => i_in_tec(0),                            -- SIO Receive
+         P_SIO_RXD  => i_in_tec(0),                         -- SIO Receive
          P_SIO_TXD  => i_out_tec(0),                        -- SIO Transmit
 
          -- PIO
@@ -415,7 +402,6 @@ begin
     port map (
          P_CLK0     => i_49_1520MHz0,                       -- 49.152MHz 0'
          P_CLK90    => i_49_1520MHz90,                      -- 49.152MHz 90'
-         P_CLK_VGA  => i_25_1221MHz,                        -- 25.1221MHz
          P_MODE     => i_mode,                              -- 0-2:TeC 3:TaC
          P_RESET    => i_reset_tac,
 
@@ -450,7 +436,10 @@ begin
 
          -- SIO
          P_SIO_RXD  => i_in_tac(0),                     -- SIO Receive
-         P_SIO_TXD  => i_out_tac(0),                     -- SIO Transmit
+         P_SIO_TXD  => i_out_tac(0),                    -- SIO Transmit
+
+         P_SIO_RXD2  => i_in_tac_sio,                   -- SIO Receive2
+         P_SIO_TXD2  => i_out_tac_sio,                  -- SIO Transmit2
 
          -- COM
          P_COM_CTR      => i_com_ctr,
@@ -468,18 +457,8 @@ begin
          P_SPI_DIN  => SPI_DIN,
          P_SPI_DOUT => SPI_DOUT,
          P_SPI_CS   => SPI_CS,
-         P_ACC_LED  => ACC_LED,
+         P_ACC_LED  => ACC_LED
 
-         -- PS/2
-         P_PS2_CLK  => PS2_CLK,
-         P_PS2_DAT  => PS2_DAT,
-
-         -- VGA
-         P_VGA_RED   => VGA_RED,
-         P_VGA_GREEN => VGA_GREEN,
-         P_VGA_BLUE  => VGA_BLUE,
-         P_VGA_HSYNC => VGA_HSYNC,
-         P_VGA_VSYNC => VGA_VSYNC
     );
 
   end Behavioral;

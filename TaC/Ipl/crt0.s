@@ -2,7 +2,7 @@
 ; TaC IPL Source Code
 ;    Tokuyama kousen Educational Computer 16 bit Version
 ;
-; Copyright (C) 2009-2012 by
+; Copyright (C) 2009-2017 by
 ;                      Dept. of Computer Science and Electronic Engineering,
 ;                      Tokuyama College of Technology, JAPAN
 ;
@@ -19,6 +19,7 @@
 ;
 ; crt0.s : IPL(ROM版)のアセンブラ部分
 ;
+; 2017.01.25         : VRAMを取りやめ、ユーザの使用できる領域を拡張
 ; 2012.09.28         : '%' の使用を止める。(インデクスドを自動的にas--が変換)
 ; 2012.09.27         : as-- のバグ修正に伴い '%', '@' の使用間違えを訂正
 ; 2012.09.13         : TaC-CPU V2 用に書き換える
@@ -29,7 +30,7 @@
 
 ;;; ここからプログラムの実行が始まる
 ipl
-	ld	sp,#0xE000	; 主記憶 56kB
+	ld	sp,#0xF000	; 主記憶 56kB
 	call	_main
 	halt			; リスタート
 	jmp	ipl
@@ -56,7 +57,7 @@ __ItoA				; 整数からアドレスへ変換
 ;; 任意のアドレスにジャンプする
 _jump
 	ld	g0,2,sp		; jump(addr)
-	ld	sp,#0xE000      ; RAM の最後
+	ld	sp,#0xF000      ; RAM の最後
 	jmp	0,g0		; 任意のアドレスにジャンプする
 
 ;; CPU を停止する
@@ -80,7 +81,7 @@ __uCmp 				; 符号無し比較
         ld      g0,#-1
 .L1
         ret
-	
+
 ;; 32ビット加算ルーチン
 _add32				; int[] add32(int[] dst, int[] src)
         ld      g0,2,sp		; ディスティネーション(アドレス)

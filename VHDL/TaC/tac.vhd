@@ -41,7 +41,6 @@ entity TaC is
   port (
          P_CLK0       : in   std_logic;                      -- 49.1520MHz 0'
          P_CLK90      : in   std_logic;                      -- 49.1520MHz 90'
-         P_CLK_VGA    : in   std_logic;                      -- 25.1221MHz
          P_MODE       : in   std_logic_vector(1 downto 0);   -- 0:TeC,1:TaC
          P_RESET      : in   std_logic;                      --   2,3:DEMO1,2
 
@@ -77,6 +76,10 @@ entity TaC is
          -- SIO
          P_SIO_RXD   : in    std_logic;                      -- SIO Receive
          P_SIO_TXD   : out   std_logic;                      -- SIO Transmit
+         
+         -- SIO2
+         P_SIO_RXD2   : in    std_logic;                     -- SIO Receive2
+         P_SIO_TXD2   : out   std_logic;                     -- SIO Transmit2
 
          -- PIO
          P_ADC_REF  : out  std_logic_vector (7 downto 0);
@@ -94,18 +97,11 @@ entity TaC is
          P_SPI_DIN   : in    std_logic;
          P_SPI_DOUT  : out   std_logic;
          P_SPI_CS    : out   std_logic;
-         P_ACC_LED   : out   std_logic;                      -- access led
+         P_ACC_LED   : out   std_logic                      -- access led
          
          -- PS/2
-         P_PS2_CLK   : inout std_logic;
-         P_PS2_DAT   : inout std_logic;
          
          -- VGA
-         P_VGA_RED   : out   std_logic;
-         P_VGA_GREEN : out   std_logic;
-         P_VGA_BLUE  : out   std_logic;
-         P_VGA_HSYNC : out   std_logic;
-         P_VGA_VSYNC : out   std_logic
        );
 end TaC;
 
@@ -141,10 +137,9 @@ signal i_dout_panel     : std_logic_vector(15 downto 0);
 signal i_dout_ram       : std_logic_vector(15 downto 0);
 signal i_dout_tmr       : std_logic_vector(15 downto 0);
 signal i_dout_intc      : std_logic_vector(15 downto 0);
-signal i_dout_vga       : std_logic_vector( 7 downto 0);
 signal i_dout_spi       : std_logic_vector(15 downto 0);
 signal i_dout_sio       : std_logic_vector( 7 downto 0);
-signal i_dout_ps2       : std_logic_vector( 7 downto 0);
+signal i_dout_sio2      : std_logic_vector( 7 downto 0);
 signal i_dout_pio       : std_logic_vector( 7 downto 0);
 signal i_dout_tmr0      : std_logic_vector(15 downto 0);
 signal i_dout_tmr1      : std_logic_vector(15 downto 0);
@@ -153,14 +148,12 @@ signal i_dout_tmr1      : std_logic_vector(15 downto 0);
 signal i_ior            : std_logic;
 signal i_iow            : std_logic;
 signal i_en_sio         : std_logic;
+signal i_en_sio2        : std_logic;
 signal i_en_spi         : std_logic;
 signal i_en_pio         : std_logic;
 signal i_en_com         : std_logic;
-signal i_en_ps2         : std_logic;
 signal i_en_tmr0        : std_logic;
 signal i_en_tmr1        : std_logic;
-signal i_en_vga         : std_logic;
-signal i_vga_we         : std_logic;
 
 -- bus for DMA
 signal i_addr_dma       : std_logic_vector(14 downto 0);
@@ -273,22 +266,6 @@ component TAC_RAM
   );
 end component;
 
-component VGA
-  port (
-         P_CLK      : in  std_logic;                       -- VGA clock
-         P_CLK_CPU  : in  std_logic;                       -- CPU bus clock
-         P_RESET    : in  std_logic;
-
-         P_WE       : in std_logic;
-         P_ADDR     : in std_logic_vector(10 downto 0);
-         P_DIN      : in std_logic_vector(7 downto 0);
-         P_DOUT     : out std_logic_vector(7 downto 0);
-
-         R,G,B      : out std_logic;
-         HS,VS      : out std_logic
-       );
-end component;
-
 component TAC_SIO
   port ( P_CLK     : in  std_logic;                      -- 49.1520MHz
          P_RESET   : in  std_logic;                      -- Reset
@@ -312,7 +289,7 @@ component TAC_SPI
          P_EN      : in  STD_LOGIC;
          P_IOR     : in  STD_LOGIC;
          P_IOW     : in  STD_LOGIC;
-	     P_INT     : out std_logic;
+         P_INT     : out std_logic;
          P_ADDR : in  std_logic_vector (1 downto 0);
          P_DIN : in  std_logic_vector (15 downto 0);
          P_DOUT : out  std_logic_vector (15 downto 0);
@@ -361,24 +338,6 @@ component TAC_COM
            P_CONSOLE_CTR  : out  std_logic;
            P_SERIAL_CTR   : out  std_logic;
            P_COM_LINE     : out  std_logic_vector (18 downto 0)
-         );
-end component;
-
-component TAC_PS2 is
-    Port ( P_CLK     : in std_logic;                       -- 50MHz
-           P_RESET   : in std_logic;                       -- Reset
-           P_IOW     : in std_logic;                       -- I/O Write
-           P_IOR     : in std_logic;                       -- I/O Read
-           P_EN      : in std_logic;                       -- Enable
-           P_ADDR    : in std_logic;                       -- Address
-           P_DOUT    : out std_logic_vector(7 downto 0);   -- Data Output
-           P_DIN     : in std_logic_vector(7 downto 0);    -- Data Input
-           
-           P_PS2D    : inout std_logic;                    -- PS/2 Data
-           P_PS2C    : inout std_logic;                    -- PS/2 Clock
-           
-           P_INT_W   : out std_logic;                      -- PS/2 ëóêMäÑÇËçûÇ›
-           P_INT_R   : out std_logic                       -- PS/2 éÛêMäÑÇËçûÇ›
          );
 end component;
 
@@ -465,20 +424,17 @@ begin
   i_en_tmr0   <= '1' when (i_addr(7 downto 2)="000000") else '0'; -- 00~03
   i_en_tmr1   <= '1' when (i_addr(7 downto 2)="000001") else '0'; -- 04~07
   i_en_sio    <= '1' when (i_addr(7 downto 2)="000010") else '0'; -- 08~0b
-  i_en_ps2    <= '1' when (i_addr(7 downto 2)="000011") else '0'; -- 0c~0f
+  i_en_sio2   <= '1' when (i_addr(7 downto 2)="000011") else '0'; -- 0c~0f
   i_en_spi    <= '1' when (i_addr(7 downto 3)="00010")  else '0'; -- 10~17
   i_en_pio    <= '1' when (i_addr(7 downto 3)="00011")  else '0'; -- 18~1f
   i_en_com    <= '1' when (i_addr(7 downto 3)="00101" and i_addr(2 downto 1)/="11")  else '0'; -- 28~2d
-  i_en_vga    <= '1' when (i_addr(15 downto 12)="1110") else '0'; -- e000~efff
-  i_vga_we    <= '1' when (i_en_vga and i_mr and i_rw)='1' else '0';
  
-  i_din_cpu <= ("00000000" & i_dout_vga) when (i_mr='1' and i_en_vga='1') else
-               i_dout_ram   when (i_mr='1') else
+  i_din_cpu <= i_dout_ram   when (i_mr='1') else
                i_dout_panel when (i_ir='1' and i_addr(7 downto 3)="11111") else
                i_dout_tmr0  when (i_ir='1' and i_en_tmr0='1') else
                i_dout_tmr1  when (i_ir='1' and i_en_tmr1='1') else
                ("00000000" & i_dout_sio) when (i_ir='1' and i_en_sio='1') else
-               ("00000000" & i_dout_ps2) when (i_ir='1' and i_en_ps2='1') else
+               ("00000000" & i_dout_sio2) when (i_ir='1' and i_en_sio2='1') else
                i_dout_spi when (i_ir='1' and i_en_spi='1') else
                ("00000000" & i_dout_pio) when (i_ir='1' and i_en_pio='1') else
                i_dout_intc;
@@ -550,25 +506,6 @@ begin
          P_MR2      => i_mr_dma
   );
 
-  -- VGA
-  VGA1 : VGA
-  port map (
-         P_CLK      => P_CLK_VGA,
-         P_CLK_CPU  => P_CLK90,
-         P_RESET    => i_reset,
-
-         P_WE       => i_vga_we,
-         P_ADDR     => i_addr(11 downto 1),
-         P_DIN      => i_dout_cpu(7 downto 0),
-         P_DOUT     => i_dout_vga,
-
-         R          => P_VGA_RED,
-         G          => P_VGA_GREEN,
-         B          => P_VGA_BLUE,
-         HS         => P_VGA_HSYNC,
-         VS         => P_VGA_VSYNC
-  );
-
   -- I/O
   TAC_SIO1 : TAC_SIO
   port map (
@@ -584,6 +521,22 @@ begin
          P_INT_RxD  => i_int_bit(4),
          P_TxD      => P_SIO_TXD,
          P_RxD      => P_SIO_RXD
+       );
+
+  TAC_SIO2 : TAC_SIO
+  port map (
+         P_CLK      => P_CLK0,
+         P_RESET    => i_reset,
+         P_IOW      => i_iow,
+         P_IOR      => i_ior,
+         P_EN       => i_en_sio2,
+         P_ADDR     => i_addr(1),
+         P_DOUT     => i_dout_sio2,
+         P_DIN      => i_dout_cpu(7 downto 0),
+         P_INT_TxD  => i_int_bit(7),
+         P_INT_RxD  => i_int_bit(6),
+         P_TxD      => P_SIO_TXD2,
+         P_RxD      => P_SIO_RXD2
        );
 
   TAC_SPI1 : TAC_SPI
@@ -643,23 +596,6 @@ begin
          P_SERIAL_CTR   => P_SERIAL_CTR,
          P_COM_LINE     => P_COM_LINE
         );
-
-  TAC_PS21: TAC_PS2
-  port map (
-      P_CLK         => P_CLK0,
-      P_RESET       => i_reset,        
-      P_IOW         => i_iow,
-      P_IOR         => i_ior,    
-      P_INT_W       => i_int_bit(7),
-      P_INT_R       => i_int_bit(6),
-      P_EN          => i_en_ps2,
-      P_ADDR        => i_addr(1),
-      P_DOUT        => i_dout_ps2,
-      P_DIN         => i_dout_cpu(7 downto 0),
-           
-      P_PS2D        => P_PS2_DAT,
-      P_PS2C        => P_PS2_CLK
-    );
 
   TAC_TIMER0: TAC_TIMER
   port map (
